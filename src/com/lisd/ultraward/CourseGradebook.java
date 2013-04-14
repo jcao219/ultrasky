@@ -39,13 +39,15 @@ public class CourseGradebook extends Activity {
 	private static List<GradeChangeInfo> cached_grade_changes;
 	private static List<AssignmentGrade> cached_grades;
 
+	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
 	@SuppressWarnings("unchecked")
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_course_gradebook);
 		// Show the Up button in the action bar.
-		getActionBar().setDisplayHomeAsUpEnabled(true);
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
+			getActionBar().setDisplayHomeAsUpEnabled(true);
 		
 		gradeslist = (ListView)findViewById(R.id.assignment_grades_listview);
 		progbar = (ProgressBar)findViewById(R.id.progressBarForFetchingCourseGrades);
@@ -248,7 +250,8 @@ public class CourseGradebook extends Activity {
 		}
 		
 		protected void onPostExecute(List<AssignmentGrade.GradeChangeInfo> blah) {	
-			db.close();
+			if(db == null)
+				db.close();
 			System.out.println("Closed database.");
 			cached_grade_changes = blah;
 			((AssignmentGradesAdapter)gradeslist.getAdapter()).highlightChanges(blah);

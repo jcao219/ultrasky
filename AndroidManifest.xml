@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.lisd.ultraward"
-    android:versionCode="33"
-    android:versionName="2.14.0" >
+    android:versionCode="35"
+    android:versionName="2.14.3" >
 
     <uses-sdk
-        android:minSdkVersion="12"
+        android:minSdkVersion="10"
         android:targetSdkVersion="17" />
 
     <uses-permission android:name="android.permission.INTERNET" />

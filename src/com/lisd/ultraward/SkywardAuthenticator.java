@@ -20,6 +20,7 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import android.R.integer;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
@@ -67,6 +68,8 @@ public class SkywardAuthenticator {
 		
 		CookieManager cm = new CookieManager();
 		CookieHandler.setDefault(cm);
+		
+		System.setProperty("http.keepAlive", "false");
 	}
 	
 	protected void setContext(Context c) {
@@ -88,7 +91,7 @@ public class SkywardAuthenticator {
 		loginSaved  = true;
 	}
 	
-	public void login(String login, String passw) throws Exception {
+	public void login(String login, String passw, int timeoutConnect, int timeoutRead) throws Exception {
 		user = login;
 		pass = passw;
 		
@@ -103,7 +106,7 @@ public class SkywardAuthenticator {
 		
 		System.out.println("Accessing login URL...");
 		
-		String response = accessUrl(loginurl, param);
+		String response = accessUrl(loginurl, param, timeoutConnect, timeoutRead);
 		
 		if(response.startsWith("<li>Invalid login"))
 			throw new Exception("Invalid login or password.");
@@ -117,8 +120,12 @@ public class SkywardAuthenticator {
 		wfaacl = URLEncoder.encode(splitted[3], "UTF-8");
 		nameid = URLEncoder.encode(splitted[4], "UTF-8");
 	}
+	
+	public void login(String login, String passw) throws Exception {
+		login(login, passw, 0, 0);
+	}
 
-	public String getGrades() throws IOException {
+	public String getGrades(int timeoutConnect, int timeoutRead) throws IOException {
 		// access Skyward gradebook using the security from login
 		Resources ress = context.getResources();
 		String params = ress.getString(R.string.gradebook_post_params);
@@ -127,13 +134,19 @@ public class SkywardAuthenticator {
 		
 		System.out.println("Getting grades...");
 		
-		String result = accessUrl(ress.getString(R.string.grades_url), params);  // big http gradebook
+		String result = accessUrl(ress.getString(R.string.grades_url), params,
+				timeoutConnect, timeoutRead);  // big http gradebook
 		
 		System.out.println("Fetched gradebook html...");
 		return result;
 	}
 	
-	public String getCourseGrades(String gbid, String csid, String sem) throws IOException {
+	public String getGrades() throws IOException {
+		return getGrades(0, 0);
+	}
+	
+	public String getCourseGrades(String gbid, String csid, String sem,
+			int timeoutConnect, int timeoutRead) throws IOException {
 		Resources ress = context.getResources();
 		
 		String params = ress.getString(R.string.course_grades_post_params);
@@ -142,10 +155,16 @@ public class SkywardAuthenticator {
 		params = params.replaceAll("%GBID%", gbid).replaceAll("%CSID%", csid);
 		params = params.replaceAll("%SEM%", sem);
 		
-		return accessUrl(ress.getString(R.string.course_grades_url), params);
+		return accessUrl(ress.getString(R.string.course_grades_url), params, 
+				timeoutConnect, timeoutRead);
 	}
 	
-	public String accessUrl(String url, String params) throws IOException {
+	public String getCourseGrades(String gbid, String csid, String sem) throws IOException {
+		return getCourseGrades(gbid, csid, sem, 0, 0);
+	}
+	
+	public String accessUrl(String url, String params, int timeoutConnect,
+			int timeoutRead) throws IOException {
 		// do POST with a url and return the results
 		URL grades_url = new URL(url);
 		
@@ -153,6 +172,11 @@ public class SkywardAuthenticator {
 		
 		conn.setDoOutput(true);
 	    conn.setDoInput(true);
+	    
+	    if(timeoutConnect != 0)
+		    conn.setConnectTimeout(timeoutConnect);
+	    if(timeoutRead != 0)
+		    conn.setReadTimeout(timeoutRead);
 		
 		conn.setRequestMethod("POST");
 		
@@ -191,7 +215,7 @@ public class SkywardAuthenticator {
 			return "";
 	}
 
-	public void reLogin() throws Exception {
+	public void reLogin(int timeoutConnect, int timeoutRead) throws Exception {
 		if(user.isEmpty()) {
 			SharedPreferences sp = context.getSharedPreferences(LoginActivity.LOGIN_PREFS, 0);
 			user = sp.getString("login", "");
@@ -200,6 +224,10 @@ public class SkywardAuthenticator {
 		if(user.isEmpty()) { // .isStillEmpty()
 			throw new Exception("No saved login or password available.");
 		}
-		login(user, pass);
+		login(user, pass, timeoutConnect, timeoutRead);
+	}
+	
+	public void reLogin() throws Exception {
+		login(user, pass, 0, 0);
 	}
 }

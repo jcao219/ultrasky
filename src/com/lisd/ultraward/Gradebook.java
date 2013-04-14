@@ -322,6 +322,7 @@ public class Gradebook extends Activity {
 		protected List<CourseGrades> doInBackground(Void... arg0) {
 			parser = new GradebookHtmlParser(gradesHtml);
 			List<CourseGrades> cglist = parser.getCurrentGrades();
+			watchedCourses = new ArrayList<CourseGrades>();
 			
 			String dbname = SkywardAuthenticator.getInstance(Gradebook.this).getLoginIfSaved();
 			
@@ -349,8 +350,6 @@ public class Gradebook extends Activity {
 			Cursor c = db.query("watched_courses", null, selection.toString(), 
 					csids, null, null, null);
 			System.out.println(c.getCount() + " watched courses found.");
-			
-			watchedCourses = new ArrayList<CourseGrades>();
 			
 			while(c.moveToNext()) {
 				for(CourseGrades courseGrades : cglist){

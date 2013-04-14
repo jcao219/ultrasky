@@ -3,6 +3,7 @@ package com.lisd.ultraward;
 import java.io.IOException;
 import java.util.List;
 
+import android.R.integer;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -26,6 +27,8 @@ public class UpdatedGradesCheckerService extends WakefulIntentService {
 	public static final String WATCHER_ON = "watcherOn";
 	public static final String WATCHED_USER = "watchedUser";
 	public static final String NOTIFICATION_ID_START = "watcherNotificationIDStart";
+	
+	public static final int TIMEOUT_CONNECT = 8500, TIMEOUT_READ = 6690;
 
 	public UpdatedGradesCheckerService() {
 		super(TAG);
@@ -35,15 +38,23 @@ public class UpdatedGradesCheckerService extends WakefulIntentService {
 	protected void doWakefulWork(Intent arg0) {
 		Log.i(TAG, "I'm awake!  Hurray!  Let's see those grades.");
 		
+		if(!Connectivity.isConnectedFast(this)) {
+			Log.i(TAG, "Current internet connection determined not "
+					+ "to be fast enough.  Boo hoo.  Postponing wakeful work.");
+			WakefulIntentService.scheduleAlarms(new MyAlarmListener(), this, true);
+			return;
+		}
+		
 		SkywardAuthenticator authenticator = SkywardAuthenticator.getInstance(this);
 		try {
-			authenticator.reLogin(); // try to use pass and username from shared preferences to log in
+			authenticator.reLogin(TIMEOUT_CONNECT, TIMEOUT_READ); // try to use pass and username from shared preferences to log in
 		} catch (Exception e) {
 			Log.w(TAG, e);
 			try {
-				authenticator.reLogin();
+				authenticator.reLogin(TIMEOUT_CONNECT, TIMEOUT_READ);
 			} catch (Exception e2) {
 				Log.i(TAG, "Unable to log in.  Giving up on grade checking work.");
+				WakefulIntentService.scheduleAlarms(new MyAlarmListener(), this, true);
 				return;
 			}
 		}
@@ -81,27 +92,22 @@ public class UpdatedGradesCheckerService extends WakefulIntentService {
 			if(analyzer.isFirstAccess())
 				continue; // don't worry about this one.
 			try {
-				html = authenticator.getCourseGrades(gbid, csid, sem);
+				html = authenticator.getCourseGrades(gbid, csid, sem, TIMEOUT_CONNECT, TIMEOUT_READ);
 			} catch (IOException e) {
 				Log.w(TAG, e);  // will retry once
 				try {
-					html = authenticator.getCourseGrades(gbid, csid, sem);
+					html = authenticator.getCourseGrades(gbid, csid, sem, TIMEOUT_CONNECT, TIMEOUT_READ);
 				} catch (IOException e2) {
-					Log.i(TAG, "Too many IOExceptions, giving up!");
-					continue;
+					Log.i(TAG, "Too many IOExceptions, giving up on watched courses!");
+					WakefulIntentService.scheduleAlarms(new MyAlarmListener(), this, true);
+					break;
 				}
 			}
-			
-			try {
-				Thread.sleep(300);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}  // just pause...
 			
 			CourseParser parser = new CourseParser(html);
 			List<AssignmentGrade> results = parser.getDumpOfGrades();
 			if(results.size() == 0) {
-				Log.w(TAG, "Somehow got no assignment grade results.  Giving up.");
+				Log.w(TAG, "Somehow got no assignment grade results.  Continuing..");
 				continue;
 			}
 			List<AssignmentGrade.GradeChangeInfo> changes = analyzer.analyze(results);
@@ -110,6 +116,9 @@ public class UpdatedGradesCheckerService extends WakefulIntentService {
 //			 	changes.add((new AssignmentGrade("Dummy", 99, 9, AssignmentType.ASSIGNMENT)).makeChangeInfo(-1));
 			
 			for(AssignmentGrade.GradeChangeInfo changeInfo : changes) {
+				if(changeInfo.getAssignment().GetGrade() == -1) {
+					continue; // no actual grade on it yet, just a blank grade, grade N/A
+				}
 				AssignmentGrade assignment = changeInfo.getAssignment();
 				NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
 				builder.setSmallIcon(R.drawable.eye_gray);
